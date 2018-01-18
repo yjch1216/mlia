@@ -25,52 +25,54 @@ def randCent(dataSet, k):#k个随机质心
     
 def kMeans(dataSet, k, distMeas=distEclud, createCent=randCent):
     m = shape(dataSet)[0]
-    clusterAssment = mat(zeros((m,2)))#create mat to assign data points 
-                                       #to a centroid, also holds SE of each point
-    centroids = createCent(dataSet, k)
-    clusterChanged = True
-    while clusterChanged:
+    clusterAssment = mat(zeros((m,2)))#每一个点的 簇的分配结果，一列记录索引（0-k-1），第二列记录误差
+    centroids = createCent(dataSet, k) # 质心
+    clusterChanged = True #分配结果改变的标志
+    while clusterChanged:#分配结果改变
         clusterChanged = False
-        for i in range(m):#for each data point assign it to the closest centroid
+        for i in range(m):#对每个数据点
             minDist = inf; minIndex = -1
-            for j in range(k):
-                distJI = distMeas(centroids[j,:],dataSet[i,:])
-                if distJI < minDist:
-                    minDist = distJI; minIndex = j
-            if clusterAssment[i,0] != minIndex: clusterChanged = True
-            clusterAssment[i,:] = minIndex,minDist**2
+            for j in range(k):#对每个质心
+                distJI = distMeas(centroids[j,:],dataSet[i,:])#计算质心与数据点的距离
+                if distJI < minDist: # 距离变小
+                    minDist = distJI; minIndex = j #取最小值及其索引
+            if clusterAssment[i,0] != minIndex: #任意一个点分配结果发生改变，更新标志位
+                clusterChanged = True
+            clusterAssment[i,:] = minIndex,minDist**2 # 一列记录索引，第二列记录误差，将数据点分配到距离其最近的簇
         print centroids
-        for cent in range(k):#recalculate centroids
+        for cent in range(k):#遍历质心，更新他们的值
             ptsInClust = dataSet[nonzero(clusterAssment[:,0].A==cent)[0]]#get all the point in this cluster
             centroids[cent,:] = mean(ptsInClust, axis=0) #assign centroid to mean 
     return centroids, clusterAssment
 
-def biKmeans(dataSet, k, distMeas=distEclud):
+def biKmeans(dataSet, k, distMeas=distEclud):#二分k均值聚类
     m = shape(dataSet)[0]
-    clusterAssment = mat(zeros((m,2)))
-    centroid0 = mean(dataSet, axis=0).tolist()[0]
-    centList =[centroid0] #create a list with one centroid
-    for j in range(m):#calc initial Error
+    clusterAssment = mat(zeros((m,2))) #存放每个点的平方误差
+    centroid0 = mean(dataSet, axis=0).tolist()[0] #计算质心
+    centList =[centroid0] #用来存放所有质心
+    for j in range(m):#计算平方误差
         clusterAssment[j,1] = distMeas(mat(centroid0), dataSet[j,:])**2
-    while (len(centList) < k):
+    while (len(centList) < k):#簇数小于k
         lowestSSE = inf
-        for i in range(len(centList)):
+        for i in range(len(centList)):#当前的每一个簇
             ptsInCurrCluster = dataSet[nonzero(clusterAssment[:,0].A==i)[0],:]#get the data points currently in cluster i
-            centroidMat, splitClustAss = kMeans(ptsInCurrCluster, 2, distMeas)
-            sseSplit = sum(splitClustAss[:,1])#compare the SSE to the currrent minimum
-            sseNotSplit = sum(clusterAssment[nonzero(clusterAssment[:,0].A!=i)[0],1])
+            centroidMat, splitClustAss = kMeans(ptsInCurrCluster, 2, distMeas)#又得到二个簇
+            sseSplit = sum(splitClustAss[:,1])#SSE
+            sseNotSplit = sum(clusterAssment[nonzero(clusterAssment[:,0].A!=i)[0],1])#other SSE
             print "sseSplit, and notSplit: ",sseSplit,sseNotSplit
             if (sseSplit + sseNotSplit) < lowestSSE:
-                bestCentToSplit = i
-                bestNewCents = centroidMat
-                bestClustAss = splitClustAss.copy()
+                bestCentToSplit = i #原质心编号
+                bestNewCents = centroidMat #新分出的质心
+                bestClustAss = splitClustAss.copy() # 分簇结果 和误差
                 lowestSSE = sseSplit + sseNotSplit
         bestClustAss[nonzero(bestClustAss[:,0].A == 1)[0],0] = len(centList) #change 1 to 3,4, or whatever
-        bestClustAss[nonzero(bestClustAss[:,0].A == 0)[0],0] = bestCentToSplit
+        bestClustAss[nonzero(bestClustAss[:,0].A == 0)[0],0] = bestCentToSplit#原质心编号
         print 'the bestCentToSplit is: ',bestCentToSplit
         print 'the len of bestClustAss is: ', len(bestClustAss)
+        #更新质心
         centList[bestCentToSplit] = bestNewCents[0,:].tolist()[0]#replace a centroid with two best centroids 
         centList.append(bestNewCents[1,:].tolist()[0])
+        #更新误差
         clusterAssment[nonzero(clusterAssment[:,0].A == bestCentToSplit)[0],:]= bestClustAss#reassign new clusters, and SSE
     return mat(centList), clusterAssment
 
