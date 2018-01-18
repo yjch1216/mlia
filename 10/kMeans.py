@@ -2,12 +2,13 @@
 
 from numpy import *
 
+
 def loadDataSet(fileName):      #general function to parse tab -delimited floats
     dataMat = []                #assume last column is target value
     fr = open(fileName)
     for line in fr.readlines():
         curLine = line.strip().split('\t')
-        fltLine = map(float,curLine) #map all elements to float()
+        fltLine = list(map(float,curLine)) #map all elements to float()
         dataMat.append(fltLine)
     return dataMat
 
@@ -39,7 +40,7 @@ def kMeans(dataSet, k, distMeas=distEclud, createCent=randCent):
             if clusterAssment[i,0] != minIndex: #任意一个点分配结果发生改变，更新标志位
                 clusterChanged = True
             clusterAssment[i,:] = minIndex,minDist**2 # 一列记录索引，第二列记录误差，将数据点分配到距离其最近的簇
-        print centroids
+        #print (centroids)
         for cent in range(k):#遍历质心，更新他们的值
             ptsInClust = dataSet[nonzero(clusterAssment[:,0].A==cent)[0]]#get all the point in this cluster
             centroids[cent,:] = mean(ptsInClust, axis=0) #assign centroid to mean 
@@ -59,7 +60,7 @@ def biKmeans(dataSet, k, distMeas=distEclud):#二分k均值聚类
             centroidMat, splitClustAss = kMeans(ptsInCurrCluster, 2, distMeas)#又得到二个簇
             sseSplit = sum(splitClustAss[:,1])#SSE
             sseNotSplit = sum(clusterAssment[nonzero(clusterAssment[:,0].A!=i)[0],1])#other SSE
-            print "sseSplit, and notSplit: ",sseSplit,sseNotSplit
+            #print ("sseSplit, and notSplit: ",sseSplit,sseNotSplit)
             if (sseSplit + sseNotSplit) < lowestSSE:
                 bestCentToSplit = i #原质心编号
                 bestNewCents = centroidMat #新分出的质心
@@ -67,14 +68,55 @@ def biKmeans(dataSet, k, distMeas=distEclud):#二分k均值聚类
                 lowestSSE = sseSplit + sseNotSplit
         bestClustAss[nonzero(bestClustAss[:,0].A == 1)[0],0] = len(centList) #change 1 to 3,4, or whatever
         bestClustAss[nonzero(bestClustAss[:,0].A == 0)[0],0] = bestCentToSplit#原质心编号
-        print 'the bestCentToSplit is: ',bestCentToSplit
-        print 'the len of bestClustAss is: ', len(bestClustAss)
+        #print ('the bestCentToSplit is: ',bestCentToSplit)
+        #print ('the len of bestClustAss is: ', len(bestClustAss))
         #更新质心
         centList[bestCentToSplit] = bestNewCents[0,:].tolist()[0]#replace a centroid with two best centroids 
         centList.append(bestNewCents[1,:].tolist()[0])
         #更新误差
         clusterAssment[nonzero(clusterAssment[:,0].A == bestCentToSplit)[0],:]= bestClustAss#reassign new clusters, and SSE
     return mat(centList), clusterAssment
+
+#distance calc function：结合两个点经纬度，返回地球'表面'两点之间距离
+def distSLC(vecA, vecB):
+    a = sin(vecA[0,1]*pi/180) * sin(vecB[0,1]*pi/180)
+    b = cos(vecA[0,1]*pi/180) * cos(vecB[0,1]*pi/180) * cos(pi * (vecB[0,0]-vecA[0,0]) /180)
+    return arccos(a + b)*6371.0 #pi is imported with numpy
+
+
+import matplotlib
+import matplotlib.pyplot as plt
+def clusterClubs(k=5):
+    datList = []
+    for line in open('places.txt').readlines():#地图数据
+        lineArr = line.split('\t') # 以tab为间隔
+        datList.append([float(lineArr[4]), float(lineArr[3])])#获取第四列和第五列的经纬度信息
+    datMat = mat(datList)
+    #print(datMat)
+    myCentroids, clustAssing = biKmeans(datMat, k, distMeas=distSLC)
+
+    fig = plt.figure()#plt
+    rect=[0.1,0.1,0.8,0.8]#创建矩形
+    scatterMarkers=['s', 'o', '^', '8', 'p',] # 不同标识
+    ['s', 'o', '^', '8', 'p', 'd', 'v', 'h', '>', '<']
+    axprops = dict(xticks=[], yticks=[])
+    #第一幅图
+    ax0=fig.add_axes(rect, label='ax0', **axprops)
+    imgP = plt.imread('Portland.png')#基于png地图创建矩阵
+    ax0.imshow(imgP)#绘制该矩阵
+    #第二幅图，使用不同的坐标系统，不做缩放或者偏移
+    ax1=fig.add_axes(rect, label='ax1', frameon=False)
+    for i in range(k):#绘制簇
+        ptsInCurrCluster = datMat[nonzero(clustAssing[:,0].A==i)[0],:]
+        markerStyle = scatterMarkers[i % len(scatterMarkers)]#选择标记类型
+        ax1.scatter(ptsInCurrCluster[:,0].flatten().A[0], ptsInCurrCluster[:,1].flatten().A[0], marker=markerStyle, s=90)
+    ax1.scatter(myCentroids[:,0].flatten().A[0], myCentroids[:,1].flatten().A[0], marker='+', s=300) #绘制簇质心
+    plt.show()
+
+
+
+'''
+##########################从yahoo获取数据的过程不作考虑##########################
 
 import urllib
 import json
@@ -86,7 +128,7 @@ def geoGrab(stAddress, city):
     params['location'] = '%s %s' % (stAddress, city)
     url_params = urllib.urlencode(params)
     yahooApi = apiStem + url_params      #print url_params
-    print yahooApi
+    print (yahooApi)
     c=urllib.urlopen(yahooApi)
     return json.loads(c.read())
 
@@ -100,39 +142,9 @@ def massPlaceFind(fileName):
         if retDict['ResultSet']['Error'] == 0:
             lat = float(retDict['ResultSet']['Results'][0]['latitude'])
             lng = float(retDict['ResultSet']['Results'][0]['longitude'])
-            print "%s\t%f\t%f" % (lineArr[0], lat, lng)
+            print ("%s\t%f\t%f" % (lineArr[0], lat, lng))
             fw.write('%s\t%f\t%f\n' % (line, lat, lng))
-        else: print "error fetching"
+        else: print ("error fetching")
         sleep(1)
     fw.close()
-    
-def distSLC(vecA, vecB):#Spherical Law of Cosines
-    a = sin(vecA[0,1]*pi/180) * sin(vecB[0,1]*pi/180)
-    b = cos(vecA[0,1]*pi/180) * cos(vecB[0,1]*pi/180) * \
-                      cos(pi * (vecB[0,0]-vecA[0,0]) /180)
-    return arccos(a + b)*6371.0 #pi is imported with numpy
-
-import matplotlib
-import matplotlib.pyplot as plt
-def clusterClubs(numClust=5):
-    datList = []
-    for line in open('places.txt').readlines():
-        lineArr = line.split('\t')
-        datList.append([float(lineArr[4]), float(lineArr[3])])
-    datMat = mat(datList)
-    myCentroids, clustAssing = biKmeans(datMat, numClust, distMeas=distSLC)
-    fig = plt.figure()
-    rect=[0.1,0.1,0.8,0.8]
-    scatterMarkers=['s', 'o', '^', '8', 'p', \
-                    'd', 'v', 'h', '>', '<']
-    axprops = dict(xticks=[], yticks=[])
-    ax0=fig.add_axes(rect, label='ax0', **axprops)
-    imgP = plt.imread('Portland.png')
-    ax0.imshow(imgP)
-    ax1=fig.add_axes(rect, label='ax1', frameon=False)
-    for i in range(numClust):
-        ptsInCurrCluster = datMat[nonzero(clustAssing[:,0].A==i)[0],:]
-        markerStyle = scatterMarkers[i % len(scatterMarkers)]
-        ax1.scatter(ptsInCurrCluster[:,0].flatten().A[0], ptsInCurrCluster[:,1].flatten().A[0], marker=markerStyle, s=90)
-    ax1.scatter(myCentroids[:,0].flatten().A[0], myCentroids[:,1].flatten().A[0], marker='+', s=300)
-    plt.show()
+'''
