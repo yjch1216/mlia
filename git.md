@@ -15,5 +15,5 @@ git remote add origin https://github.com/yourname/pro.git
 git push -u origin master  //提交到你的仓库
 
 # 3. push
-git commit -am "some str"
+git commit -am "some str" 
 git push
